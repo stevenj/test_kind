@@ -80,16 +80,15 @@
 //!    // Test code
 //! }
 //! ```
+mod attribute_kind;
 mod config;
 mod unit_age;
-mod attribute_kind;
 
 use attribute_kind::{AttributeKind, TestSettings};
 
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, LitStr};
-
 
 #[proc_macro_attribute]
 pub fn test_kind(attr: TokenStream, input: TokenStream) -> TokenStream {

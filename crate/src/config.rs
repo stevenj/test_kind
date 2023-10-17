@@ -1,5 +1,5 @@
 //! Configuration control for the `test_kind` maro.
-//! 
+//!
 use lazy_static::lazy_static;
 use std::collections::HashSet;
 use std::env;

@@ -5,10 +5,11 @@ use chrono::{Duration, NaiveDate};
 use std::collections::HashSet;
 use syn::{Error, LitStr, Result};
 
-use crate::config::{is_test_kind_excluded, is_test_kind_defined, TEST_KIND_UNIT_AGE, has_resources_available};
+use crate::config::{
+    has_resources_available, is_test_kind_defined, is_test_kind_excluded, TEST_KIND_UNIT_AGE,
+};
 
 use crate::unit_age::UnitAgeResult;
-
 
 /// What kind of Test is this and its attributes.
 pub(crate) enum AttributeKind {
@@ -62,9 +63,14 @@ impl AttributeKind {
     #[allow(clippy::unwrap_in_result)]
     fn parse_updated(lit_str: &LitStr, options: &&str) -> Result<NaiveDate> {
         if let Some(date_str) = options.strip_prefix("updated=") {
-            let date = match NaiveDate::parse_from_str(date_str, "%Y-%m-%d"){
+            let date = match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
                 Ok(date) => date,
-                Err(err) => return Err(Error::new_spanned(lit_str, format!("Invalid date format: {err:?}"))),
+                Err(err) => {
+                    return Err(Error::new_spanned(
+                        lit_str,
+                        format!("Invalid date format: {err:?}"),
+                    ))
+                }
             };
 
             // Validate the date
@@ -138,9 +144,9 @@ impl AttributeKind {
     }
 
     /// Convert the literal string parameters of the macro into a `AttributeKind`.
-    /// 
+    ///
     /// * `lit_str`: The literal string
-    /// 
+    ///
     /// Returns an error if the parameters are invalid.
     pub(crate) fn from_lit_str(lit_str: &LitStr) -> Result<Self> {
         let binding = lit_str.value();
@@ -185,9 +191,7 @@ impl AttributeKind {
                         }
                     }
                     // Recently Aged tests are skipped with a message.
-                    UnitAgeResult::Aged(reason) => TestSettings::Skip {
-                        reason,
-                    },
+                    UnitAgeResult::Aged(reason) => TestSettings::Skip { reason },
                     // Older than that we just inhibit them.
                     UnitAgeResult::Old => TestSettings::Ignore,
                 }

@@ -1,6 +1,6 @@
 //! Unit Test Aging control
 
-use chrono::{NaiveDate, Utc, Duration};
+use chrono::{Duration, NaiveDate, Utc};
 use std::env;
 
 /// Defines the aging parameters for unit tests.
