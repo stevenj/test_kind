@@ -29,10 +29,6 @@ jobs:
 
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          cache-name: cargo-cache
-          path: ~/.cargo
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-cargo-${{ hashFiles('**/Cargo.lock') }}          
 
       - name: Install cargo-nextest
         uses: baptiste0928/cargo-install@v1
