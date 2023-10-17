@@ -1,0 +1,1 @@
+# Rust Test Kind macro
