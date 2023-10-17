@@ -1,0 +1,24 @@
+[package]
+name = "test_kind"
+version = "0.1.0"
+edition = "2021"
+authors = ["Steven Johnson"]
+license = "MIT OR Apache-2.0"
+description = "Test kind attribute macro"
+readme = "README.md"
+repository = "https://github.com/stevenj/test-kind"
+homepage = "https://github.com/stevenj/test-kind"
+keywords = ["test", "kind"]
+categories = ["development-tools::testing"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+quote = "1.0"
+syn = {version = "2.0", features = ["full"]}
+chrono = "0.4"
+lazy_static = "1.4.0"
+
+
+[lib]
+proc-macro = true 
