@@ -31,7 +31,7 @@
 //! These are specified as:
 //!
 //! ```rust
-//! #[test_kind(unit, updated="YYYY-MM-DD")]
+//! #[test_kind(unit, updated=YYYY-MM-DD)]
 //! fn my_test() {
 //!    // Test code
 //! }
