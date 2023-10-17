@@ -39,6 +39,15 @@ jobs:
         run: |
           cd crate
           cargo build --verbose
-      - name: test
+      - name: Build docs
+        run: |
+          cd crate
+          cargo doc -r --no-deps
+      - name: Run Doc Tests
+        run: |
+          cd crate
+          cargo test --doc
+      - name: Run Tests
+        run: |
           cd crate
           cargo nextest run
