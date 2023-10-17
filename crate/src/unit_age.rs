@@ -1,6 +1,6 @@
 //! Unit Test Aging control
 
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::{Local, NaiveDate};
 use std::env;
 
 /// Defines the aging parameters for unit tests.
@@ -50,13 +50,13 @@ impl UnitAge {
         if self.max == 0 {
             return UnitAgeResult::Young;
         }
-        let now = Utc::now().naive_utc().date();
-        let age = now.signed_duration_since(since);
+        let now = Local::now().date_naive();
+        let age = now.signed_duration_since(since).num_days();
         let silent_age: i64 = self.max.saturating_add(self.skip).into();
-        if age < Duration::days(self.max.into()) {
+        if age < self.max.into() {
             UnitAgeResult::Young
         } else {
-            let skip_left = silent_age.saturating_sub(age.num_days());
+            let skip_left = silent_age.saturating_sub(age);
             if skip_left > 0 {
                 UnitAgeResult::Aged(format!("Silenced in {skip_left} days"))
             } else {

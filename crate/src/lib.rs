@@ -31,11 +31,17 @@
 //! These are specified as:
 //!
 //! ```rust
-//! #[test_kind(unit, updated=YYYY-MM-DD)]
+//! #[macro_use]
+//!
+//! use test_kind::test_kind;
+//!
+//! #[test_kind(unit, updated=2023-10-15)]
 //! fn my_test() {
 //!    // Test code
 //! }
 //! ```
+//!
+//! * `updated` is in the format YYYY-MM-DD and must be a valid date no later than today and no earlier than 2023-10-10.
 //!
 //! ## Integration Tests
 //!
@@ -47,6 +53,10 @@
 //! These are specified as:
 //!
 //! ```rust
+//! #[macro_use]
+//!
+//! use test_kind::test_kind;
+//!
 //! #[test_kind(integration)]
 //! fn my_test() {
 //!    // Test code
@@ -59,6 +69,7 @@
 //!
 //! The resources the tests can assume are present are defined as a list in the `TEST_KIND_RESOURCES` env var.
 //! When any other kind of test is defined its list of necessary external resources must be supplied.
+//! The allowed resources can be constrained with a list of known resources in the `TEST_KIND_KNOWN_RESOURCES` env var.
 //!
 //! The name of the test is arbitrary but should match what kind of test it is.
 //! Examples of these kinds of tests:
@@ -75,11 +86,17 @@
 //!
 //! These are specified as:
 //! ```rust
+//! #[macro_use]
+//!
+//! use test_kind::test_kind;
+//!
 //! #[test_kind(end2end, resources=foo, bar)]
 //! fn my_test() {
 //!    // Test code
 //! }
 //! ```
+extern crate proc_macro;
+
 mod attribute_kind;
 mod config;
 mod unit_age;
@@ -88,7 +105,7 @@ use attribute_kind::{AttributeKind, TestSettings};
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, LitStr};
+use syn::parse_macro_input;
 
 #[proc_macro_attribute]
 pub fn test_kind(attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -96,14 +113,15 @@ pub fn test_kind(attr: TokenStream, input: TokenStream) -> TokenStream {
     let test_fn = parse_macro_input!(input as syn::ItemFn);
 
     // Parse the attribute arguments
-    let attr_str = parse_macro_input!(attr as LitStr);
-    let kind = match AttributeKind::from_lit_str(&attr_str) {
+    let attr_str = attr.to_string();
+    let kind = match AttributeKind::from_str(&attr_str) {
         Ok(kind) => kind,
         Err(err) => return err.to_compile_error().into(),
     };
 
     match kind.what_to_do() {
         TestSettings::Run => {
+            eprintln!("Run");
             // Return the test function, and allow it to run.
             quote! {
                 #[test]
@@ -111,12 +129,14 @@ pub fn test_kind(attr: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
         TestSettings::Ignore => {
+            eprintln!("Ignore");
             // Return an empty TokenStream to exclude the function from the code
             quote!()
         }
         TestSettings::Skip { reason } => {
+            eprintln!("Skip {reason}");
             quote! {
-               #[cfg(test)]
+               #[test]
                #[ignore = #reason]
                #test_fn
             }

@@ -1,16 +1,16 @@
 //! What kind of test is this and what are its attributes
-
-use chrono::{Duration, NaiveDate};
-
+use chrono::{Duration, Local, NaiveDate};
+use indoc::indoc;
 use std::collections::HashSet;
-use syn::{Error, LitStr, Result};
+use syn::{Error, Result};
 
 use crate::config::{
-    has_resources_available, is_test_kind_defined, is_test_kind_excluded, TEST_KIND_UNIT_AGE,
+    has_resources_available, is_test_kind_defined, is_test_kind_excluded, is_test_resource_defined,
+    TEST_KIND_UNIT_AGE,
 };
-
 use crate::unit_age::UnitAgeResult;
 
+#[derive(Debug)]
 /// What kind of Test is this and its attributes.
 pub(crate) enum AttributeKind {
     /// Unit tests.
@@ -61,13 +61,13 @@ impl AttributeKind {
     /// * after October 10, 2023;
     /// * and no more than 2 days into the future.
     #[allow(clippy::unwrap_in_result)]
-    fn parse_updated(lit_str: &LitStr, options: &&str) -> Result<NaiveDate> {
-        if let Some(date_str) = options.strip_prefix("updated=") {
-            let date = match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+    fn parse_updated(attributes: &String, options: &&str) -> Result<NaiveDate> {
+        if let Some(date_str) = options.strip_prefix("updated = ") {
+            let date = match NaiveDate::parse_from_str(date_str, "%Y - %m - %d") {
                 Ok(date) => date,
                 Err(err) => {
                     return Err(Error::new_spanned(
-                        lit_str,
+                        attributes,
                         format!("Invalid date format: {err:?}"),
                     ))
                 }
@@ -76,28 +76,27 @@ impl AttributeKind {
             // Validate the date
             #[allow(clippy::unwrap_used)]
             let min_date = NaiveDate::from_ymd_opt(2023, 10, 10).unwrap(); // Can't panic
-            #[allow(clippy::arithmetic_side_effects)]
-            let max_date = min_date + Duration::days(2);
+            let max_date = Local::now().date_naive() + Duration::days(2);
 
             if date < min_date {
                 return Err(Error::new_spanned(
-                    lit_str,
-                    "Date must not be before 10 October 2023.",
+                    attributes,
+                    format!("`updated={date}` must not be before 10 October 2023."),
                 ));
             }
 
             if date > max_date {
                 return Err(Error::new_spanned(
-                    lit_str,
-                    "Date must not be more than 2 days after the current date",
+                    attributes,
+                    format!("`updated={date}` must not be more than 2 days after the current date. Max date = {max_date}."),
                 ));
             }
 
             Ok(date)
         } else {
             Err(Error::new_spanned(
-                lit_str,
-                "Invalid options for kind 'unit'",
+                attributes,
+                format!("Invalid options for test kind 'unit': {attributes}:{options}"),
             ))
         }
     }
@@ -106,14 +105,14 @@ impl AttributeKind {
     ///
     /// Returns an error if the list of resources is invalid, or not unique
     ///
-    fn parse_resources(kind: &str, lit_str: &LitStr, options: &&str) -> Result<Vec<String>> {
+    fn parse_resources(kind: &str, attributes: &String, options: &&str) -> Result<Vec<String>> {
         if !is_test_kind_defined(kind) {
             return Err(Error::new_spanned(
-                lit_str,
+                attributes,
                 format!("Undefined Test Kind: {kind}"),
             ));
         }
-        if let Some(resources_str) = options.strip_prefix("resources=") {
+        if let Some(resources_str) = options.strip_prefix("resources = ") {
             let resources: Vec<String> = resources_str
                 .split(',')
                 .map(|s| s.trim().to_owned())
@@ -121,15 +120,27 @@ impl AttributeKind {
 
             if resources.is_empty() {
                 return Err(Error::new_spanned(
-                    lit_str,
+                    attributes,
                     "At least one resource must be specified",
+                ));
+            }
+
+            let unknown_resources: Vec<String> = resources
+                .iter()
+                .cloned()
+                .filter(|r| !is_test_resource_defined(r))
+                .collect();
+            if !unknown_resources.is_empty() {
+                return Err(Error::new_spanned(
+                    attributes,
+                    format!("Unknown Resources: {unknown_resources:?}"),
                 ));
             }
 
             let unique_set: HashSet<_> = resources.iter().cloned().collect();
             if resources.len() != unique_set.len() {
                 return Err(Error::new_spanned(
-                    lit_str,
+                    attributes,
                     "Resources may not be specified multiple times",
                 ));
             }
@@ -137,8 +148,8 @@ impl AttributeKind {
             Ok(resources)
         } else {
             Err(Error::new_spanned(
-                lit_str,
-                format!("Invalid list of resources for for test kind {kind}"),
+                attributes,
+                format!("Invalid list of resources for for test kind {kind} : {options}"),
             ))
         }
     }
@@ -148,30 +159,28 @@ impl AttributeKind {
     /// * `lit_str`: The literal string
     ///
     /// Returns an error if the parameters are invalid.
-    pub(crate) fn from_lit_str(lit_str: &LitStr) -> Result<Self> {
-        let binding = lit_str.value();
-        let parts: Vec<&str> = binding.split(',').map(str::trim).collect();
+    pub(crate) fn from_str(attributes: &String) -> Result<Self> {
+        let parts: Vec<&str> = attributes.splitn(2, ',').map(str::trim).collect();
 
         match *parts.as_slice() {
             ["unit", options] => Ok(Self::Unit {
-                #[allow(clippy::question_mark_used)]
-                updated: AttributeKind::parse_updated(lit_str, &options)?,
+                updated: AttributeKind::parse_updated(attributes, &options)?,
             }),
             ["integration"] => Ok(Self::Integration),
-            [kind, options] => {
-                if is_test_kind_defined(kind) {
-                    Ok(Self::Other {
-                        kind: (*kind).to_owned(),
-                        resources: AttributeKind::parse_resources(kind, lit_str, &options)?,
-                    })
-                } else {
-                    Err(Error::new_spanned(
-                        lit_str,
-                        format!("Invalid Test Kind {kind}"),
-                    ))
-                }
+            [kind, options] => Ok(Self::Other {
+                kind: (*kind).to_owned(),
+                resources: AttributeKind::parse_resources(kind, attributes, &options)?,
+            }),
+            _ => {
+                let msg = indoc! {"
+                    Invalid attribute format.
+                    Must be one of: 
+                     * unit, updated=YYYY-MM-DD
+                     * integration
+                     * <something>, resources=<comma separated list of resources>
+                "};
+                Err(Error::new_spanned(attributes, msg))
             }
-            _ => Err(Error::new_spanned(lit_str, "Invalid attribute format")),
         }
     }
 
@@ -219,7 +228,7 @@ impl AttributeKind {
                         TestSettings::Run
                     } else {
                         TestSettings::Skip {
-                            reason: format!("Test of kind: {kind} requires {missing_resources:#?}"),
+                            reason: format!("Test of kind: {kind} requires {missing_resources:?}"),
                         }
                     }
                 }
